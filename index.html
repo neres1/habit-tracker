@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F1E6CE" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#13202A" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hábitos">
+  <meta name="description" content="Transforme sua agenda do Google em atividades avaliadas de 1 a 10 e acompanhe sua efetividade.">
+  <title>Habit Tracker</title>
+  <script>
+    // Aplica o tema salvo antes de pintar a página, para não piscar.
+    try {
+      var t = localStorage.getItem('habit-tracker:theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Archivo:wght@400;500;600;700&family=Bebas+Neue&family=Yellowtail&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" defer></script>
+  <script src="js/config.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <button type="button" class="skip-link" data-skip>Pular para o conteúdo</button>
+
+  <div class="app">
+    <nav class="sidebar" aria-label="Principal">
+      <a class="brand" href="#/hoje">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="44" height="44"><path class="burst" d="M24 2l4.2 10.6L38 6.4l-2.2 11.2L46 20l-9.4 6.4L42 36l-11-.8L28.6 46 24 36.4 19.4 46 17 35.2 6 36l5.4-9.6L2 20l10.2-2.4L10 6.4l9.8 6.2z"/><path class="burst-check" d="M16 24.5l5.5 5.5L32.5 18" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Habit Tracker</span>
+          <span class="brand-tag">Programa de bons hábitos</span>
+        </span>
+      </a>
+      <div class="nav">
+        <a class="nav-link" data-nav="hoje" href="#/hoje">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+          Hoje
+        </a>
+        <a class="nav-link" data-nav="agenda" href="#/agenda">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          Agenda
+        </a>
+        <a class="nav-link" data-nav="desempenho" href="#/desempenho">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+          Desempenho
+        </a>
+        <a class="nav-link" data-nav="atividades" href="#/atividades">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          Atividades
+        </a>
+      </div>
+      <div class="sidebar-foot">
+        <div class="theme-switch" role="group" aria-label="Tema">
+          <button type="button" data-action="theme" data-theme-value="auto">Auto</button>
+          <button type="button" data-action="theme" data-theme-value="light">Claro</button>
+          <button type="button" data-action="theme" data-theme-value="dark">Escuro</button>
+        </div>
+        <div class="account" id="account"></div>
+      </div>
+    </nav>
+
+    <main class="content" id="view" tabindex="-1"></main>
+  </div>
+
+  <nav class="tabbar" aria-label="Navegação">
+    <a class="tab" data-nav="hoje" href="#/hoje">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+      <span>Hoje</span>
+    </a>
+    <a class="tab" data-nav="agenda" href="#/agenda">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      <span>Agenda</span>
+    </a>
+    <a class="tab" data-nav="desempenho" href="#/desempenho">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      <span>Desempenho</span>
+    </a>
+    <a class="tab" data-nav="atividades" href="#/atividades">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span>Atividades</span>
+    </a>
+  </nav>
+
+  <dialog id="rate-dialog" class="dialog" aria-labelledby="rate-title">
+    <form id="rate-form" class="dialog-body" novalidate>
+      <p class="eyebrow" id="rate-when"></p>
+      <h2 class="dialog-title" id="rate-title"></h2>
+      <fieldset class="fieldset">
+        <legend class="label">Como foi a sua entrega?</legend>
+        <div class="scale" id="rate-scale"></div>
+        <div class="scale-ends" aria-hidden="true"><span>1 · Muito ruim</span><span>10 · Muito bom</span></div>
+      </fieldset>
+      <p class="field-error" id="rate-error" role="alert" hidden>Escolha uma nota de 1 a 10.</p>
+      <div class="field">
+        <label class="label" for="rate-note">Observação <span class="optional">(opcional)</span></label>
+        <textarea id="rate-note" class="textarea" rows="2" maxlength="500" placeholder="O que ajudou ou atrapalhou?"></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="rate-undo" hidden>Desmarcar</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="rate-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="rate-save">Concluir</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript>
+    <p class="noscript">Ative o JavaScript para usar o Habit Tracker.</p>
+  </noscript>
+</body>
+</html>

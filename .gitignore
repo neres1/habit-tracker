@@ -1,0 +1,10 @@
+# Configurações locais do Claude Code
+.claude/
+
+# Exportações e arquivos soltos
+*.zip
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
