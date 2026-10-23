@@ -13,8 +13,10 @@ Feito com HTML, CSS e JavaScript puros (sem etapa de build), no visual retrô "e
 
 ### As métricas
 
-- **Devidas:** atividades que já deveriam ter acontecido (dias passados, as já concluídas e, hoje, as que já terminaram).
-- **Efetividade:** soma das notas ÷ (10 × devidas). Uma atividade não feita conta como zero. Exemplo: 3 atividades com notas 8, 6 e uma não feita dão (8 + 6 + 0) ÷ 30 = 47%.
+- **Disponíveis:** todas as atividades até o fim de hoje (mais as já concluídas). Dias futuros não entram.
+- **Efetividade:** soma das notas ÷ (10 × disponíveis). Tudo o que não tem nota conta como zero, inclusive o que ainda está pendente hoje. Exemplo: 3 atividades com notas 8, 6 e uma sem nota dão (8 + 6 + 0) ÷ 30 = 47%.
+- **Não feitas:** as que já passaram sem nota. **Pendentes:** as de hoje que ainda podem ser feitas.
+- **Situação das atividades:** gráfico circular na aba Desempenho com concluídas por faixa de nota, não feitas, pendentes e por vir.
 - **Nota média:** média das notas das atividades concluídas.
 - **Atividades:** ocorrências com o mesmo título (ex.: todas as "Aula de Cálculo II") formam uma atividade, com evolução das notas, sequência e histórico próprios.
 
@@ -67,7 +69,8 @@ Depois abra `http://localhost:8000`. Para publicar na internet, qualquer hospeda
 
 ## Limitações conhecidas
 
-- O acesso ao Google vale cerca de **1 hora** após o login. Depois disso o botão vira **Reconectar Google**, que leva de volta ao login do Google por um instante. Para sincronizar sem reconectar, o próximo passo seria uma Edge Function do Supabase que guarde e renove o token.
+- O acesso ao Google vale cerca de **1 hora**. Para não pedir login de novo, o app guarda o refresh token do Google na tabela `google_tokens` (sem acesso pelo navegador) e a Edge Function [`google-token`](supabase/functions/google-token/index.ts) renova o acesso sozinha. Ela precisa dos segredos `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` em **Edge Functions › Secrets**. Se o Google revogar o acesso, o botão vira **Reconectar Google**.
+- Enquanto o app estiver em **modo de teste** no Google Cloud, o Google faz o refresh token expirar em 7 dias. Para ficar conectado de vez, publique o app (**Google Auth Platform › Público-alvo › Publicar app**).
 - Tasks **sem data** não entram, porque não têm um dia para contar nas métricas.
 - Eventos recusados por você, feriados e aniversários são ignorados.
 - O app não envia notificações e não escreve nada de volta no Google.

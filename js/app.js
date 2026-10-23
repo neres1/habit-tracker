@@ -62,27 +62,31 @@
   const effectClass = (p) => (p == null ? 'none' : p < 40 ? 'low' : p < 60 ? 'mid' : p < 80 ? 'good' : 'top');
 
   // ---------- Métricas ----------
-  // "Devida" é a atividade que já deveria ter acontecido: dias passados, as já concluídas
-  // e, no dia de hoje, as que já terminaram. Efetividade = soma das notas ÷ (10 × devidas).
+  // "Disponível" é toda atividade até o fim de hoje (mais as já concluídas): o que não tem
+  // nota conta como zero. Efetividade = soma das notas ÷ (10 × disponíveis).
+  // "Não feita" é a que já passou sem nota; "pendente" é a de hoje que ainda pode ser feita.
 
-  function isDue(a, tk, now) {
-    if (a.status === 'done' || a.day < tk) return true;
-    if (a.day > tk) return false;
-    return !!(a.end_at && new Date(a.end_at).getTime() < now);
+  const isDue = (a, tk) => a.status === 'done' || a.day <= tk;
+
+  function isMissed(a, tk, now) {
+    if (a.status === 'done') return false;
+    if (a.day < tk) return true;
+    return a.day === tk && !!(a.end_at && new Date(a.end_at).getTime() < now);
   }
-  const isMissed = (a, tk, now) => a.status !== 'done' && isDue(a, tk, now);
 
   function metrics(list) {
     const tk = toKey(today());
     const now = Date.now();
-    const due = list.filter((a) => isDue(a, tk, now));
+    const due = list.filter((a) => isDue(a, tk));
     const done = list.filter((a) => a.status === 'done');
+    const missed = list.filter((a) => isMissed(a, tk, now)).length;
     const sum = done.reduce((s, a) => s + a.rating, 0);
     return {
       total: list.length,
       due: due.length,
       done: done.length,
-      missed: due.length - done.filter((a) => isDue(a, tk, now)).length,
+      missed,
+      pending: due.length - done.length - missed,
       effect: due.length ? Math.round((sum / (10 * due.length)) * 100) : null,
       completion: due.length ? Math.round((done.length / due.length) * 100) : null,
       avg: done.length ? sum / done.length : null
@@ -118,7 +122,7 @@
   }
 
   function syncButton() {
-    if (store.mode === 'supabase' && (ui.needsReconnect || !store.hasGoogleToken())) {
+    if (store.mode === 'supabase' && ui.needsReconnect) {
       return `<button type="button" class="btn btn-ghost" data-action="signin">${ICONS.google}<span>Reconectar Google</span></button>`;
     }
     return `<button type="button" class="btn btn-ghost" data-action="sync"${ui.syncing ? ' disabled aria-busy="true"' : ''}>` +
@@ -342,6 +346,39 @@
     return `<div class="hist" role="img" aria-label="Notas no período: ${counts.map((n, r) => (r && n ? n + ' com nota ' + r : null)).filter(Boolean).join(', ')}">${cols.join('')}</div>`;
   }
 
+  // Gráfico circular: como as atividades do período se dividem.
+  function donut(list) {
+    if (!list.length) return '<p class="hint">Nenhuma atividade no período.</p>';
+    const tk = toKey(today());
+    const now = Date.now();
+    const count = (fn) => list.filter(fn).length;
+    const done = (lo, hi) => (a) => a.status === 'done' && a.rating >= lo && a.rating <= hi;
+    const slices = [
+      { cls: 'seg-top', label: 'Concluídas · nota 9–10', n: count(done(9, 10)) },
+      { cls: 'seg-good', label: 'Concluídas · nota 7–8', n: count(done(7, 8)) },
+      { cls: 'seg-mid', label: 'Concluídas · nota 4–6', n: count(done(4, 6)) },
+      { cls: 'seg-low', label: 'Concluídas · nota 1–3', n: count(done(1, 3)) },
+      { cls: 'seg-missed', label: 'Não feitas', n: count((a) => isMissed(a, tk, now)) },
+      { cls: 'seg-pending', label: 'Pendentes hoje', n: count((a) => a.status !== 'done' && a.day === tk && !isMissed(a, tk, now)) },
+      { cls: 'seg-future', label: 'Por vir', n: count((a) => a.status !== 'done' && a.day > tk) }
+    ].filter((s) => s.n > 0);
+    const total = list.length;
+    let offset = 0;
+    const arcs = slices.map((s) => {
+      const pct = (s.n / total) * 100;
+      const arc = `<circle class="donut-seg ${s.cls}" cx="21" cy="21" r="15.9155" fill="none" stroke-width="6" stroke-dasharray="${pct.toFixed(3)} ${(100 - pct).toFixed(3)}" stroke-dashoffset="${(25 - offset).toFixed(3)}"><title>${s.label}: ${s.n} (${Math.round(pct)}%)</title></circle>`;
+      offset += pct;
+      return arc;
+    }).join('');
+    const legend = slices.map((s) =>
+      `<li><i class="${s.cls}" aria-hidden="true"></i><span>${s.label}</span><strong>${s.n}</strong><small>${Math.round((s.n / total) * 100)}%</small></li>`).join('');
+    return '<div class="donut-wrap">' +
+      `<div class="donut"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(slices.map((s) => s.label + ': ' + s.n).join(', '))}">` +
+      `<circle class="donut-track" cx="21" cy="21" r="15.9155" fill="none" stroke-width="6"/>${arcs}</svg>` +
+      `<span class="donut-center"><strong>${total}</strong><small>${total === 1 ? 'atividade' : 'atividades'}</small></span></div>` +
+      `<ul class="donut-legend">${legend}</ul></div>`;
+  }
+
   function meter(label, m) {
     return '<div class="meter">' +
       `<div class="meter-head"><span class="meter-label">${label}</span><span class="meter-value">${m.effect == null ? '–' : m.effect + '%'}</span></div>` +
@@ -381,14 +418,15 @@
         '</div>' +
       '</header>' +
       '<section class="kpis" aria-label="Indicadores do período">' +
-        `<div class="card stat stat-ring">${seal(m.effect)}<div class="stack-4"><span class="stat-label">Efetividade</span><span class="stat-big">${m.effect == null ? '–' : m.effect + '%'}</span><span class="stat-sub">soma das notas ÷ máximo possível</span></div></div>` +
-        `<div class="card stat"><span class="stat-label">Concluídas</span><span class="stat-value">${m.done}<small> de ${m.due}</small></span><span class="stat-sub">${m.completion == null ? 'Nada devido ainda' : m.completion + '% das atividades devidas'}</span></div>` +
+        `<div class="card stat stat-ring">${seal(m.effect)}<div class="stack-4"><span class="stat-label">Efetividade</span><span class="stat-big">${m.effect == null ? '–' : m.effect + '%'}</span><span class="stat-sub">soma das notas ÷ máximo possível; sem nota conta zero</span></div></div>` +
+        `<div class="card stat"><span class="stat-label">Concluídas</span><span class="stat-value">${m.done}<small> de ${m.due}</small></span><span class="stat-sub">${m.completion == null ? 'Nada disponível ainda' : m.completion + '% das atividades disponíveis'}</span></div>` +
         `<div class="card stat"><span class="stat-label">Nota média</span><span class="stat-value">${m.avg == null ? '–' : dec(m.avg)}</span><span class="stat-sub">nas atividades concluídas</span></div>` +
         `<div class="card stat"><span class="stat-label warm">Não feitas</span><span class="stat-value">${m.missed}</span><span class="stat-sub">atividades que passaram sem nota</span></div>` +
       '</section>' +
       '<div class="split">' +
         `<section class="card card-pad stack-16" aria-labelledby="graf-titulo"><h2 id="graf-titulo" class="section-title">${chartTitle}</h2>${chart}</section>` +
         '<div class="aside">' +
+          `<section class="card card-pad stack-16" aria-labelledby="pizza-titulo"><h2 id="pizza-titulo" class="section-title">Situação das atividades</h2>${donut(list)}</section>` +
           `<section class="card card-pad stack-16" aria-labelledby="hist-titulo"><h2 id="hist-titulo" class="section-title">Distribuição das notas</h2>${histogram(list)}</section>` +
           '<section class="card card-pad stack-16" aria-labelledby="tipo-titulo"><h2 id="tipo-titulo" class="section-title">Por tipo</h2>' +
             meter('Eventos da agenda', metrics(list.filter((a) => a.source === 'calendar'))) +
@@ -413,7 +451,7 @@
       .filter((s) => filter === 'todas' || (filter === 'eventos' ? s.source === 'calendar' : s.source === 'tasks'))
       .map((s) => {
         const recent = s.items.filter((a) => a.day >= since && a.day <= tk);
-        const due = s.items.filter((a) => isDue(a, tk, now));
+        const due = s.items.filter((a) => a.status === 'done' || isMissed(a, tk, now));
         return { s, m: metrics(recent), spark: due.slice(-12).map((a) => (a.status === 'done' ? a.rating : 0)), count: recent.length };
       })
       .sort((a, b) => b.count - a.count || a.s.title.localeCompare(b.s.title));
@@ -467,7 +505,8 @@
     const tk = toKey(today());
     const now = Date.now();
     const last = items[items.length - 1];
-    const due = items.filter((a) => isDue(a, tk, now));
+    // Sequência e gráfico usam só ocorrências encerradas (concluídas ou não feitas).
+    const due = items.filter((a) => a.status === 'done' || isMissed(a, tk, now));
     const m = metrics(items);
     const m30 = metrics(items.filter((a) => a.day >= toKey(addDays(today(), -29)) && a.day <= tk));
 
@@ -804,7 +843,7 @@
     store.onAuthChange((event) => { if (event === 'SIGNED_OUT') render(); });
     render();
     // Sincroniza sozinho ao entrar, se a última sincronização tiver mais de 30 minutos.
-    if (store.mode === 'supabase' && store.user && store.hasGoogleToken()) {
+    if (store.mode === 'supabase' && store.user) {
       const last = store.lastSyncedAt();
       if (!last || Date.now() - new Date(last).getTime() > 30 * 60 * 1000) doSync();
     }

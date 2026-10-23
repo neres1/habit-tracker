@@ -142,10 +142,35 @@
     let items = [];
     let settings = null;
 
-    // O Supabase não renova o token do Google: guardamos o que veio no login (vale ~1 hora).
+    // O acesso ao Google vale ~1 hora. No login o Google também entrega um "refresh token",
+    // que guardamos no banco (fora do alcance do navegador). Quando o acesso vence, a Edge
+    // Function google-token usa esse refresh token para pedir um acesso novo ao Google.
+    function cacheToken(token, seconds) {
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, exp: Date.now() + Math.max(60, (seconds || 3600) - 300) * 1000 })); } catch (e) { /* sem armazenamento */ }
+    }
+    function clearToken() {
+      try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignora */ }
+    }
     function rememberGoogleToken(session) {
-      if (!session || !session.provider_token) return;
-      try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: session.provider_token, exp: Date.now() + 55 * 60 * 1000 })); } catch (e) { /* sem armazenamento */ }
+      if (!session) return;
+      if (session.provider_token) cacheToken(session.provider_token, 3600);
+      if (session.provider_refresh_token) {
+        sb.rpc('save_google_refresh_token', { token: session.provider_refresh_token })
+          .then(({ error }) => { if (error) console.warn('Não foi possível guardar o refresh token do Google.', error.message); });
+      }
+    }
+    async function ensureGoogleToken() {
+      const cached = googleToken();
+      if (cached) return cached;
+      const { data, error } = await sb.functions.invoke('google-token', { method: 'POST' });
+      if (error) {
+        let body = null;
+        try { body = await error.context.json(); } catch (e) { /* sem corpo */ }
+        if (body && body.error === 'reauth') throw codedError('google-auth', 'Conecte o Google de novo para sincronizar.');
+        throw codedError('google-auth', 'Não foi possível renovar o acesso ao Google. Conecte de novo.');
+      }
+      cacheToken(data.access_token, data.expires_in);
+      return data.access_token;
     }
     function googleToken() {
       try {
@@ -232,8 +257,7 @@
       },
 
       async sync() {
-        const token = googleToken();
-        if (!token) throw codedError('google-auth', 'Conecte o Google de novo para sincronizar.');
+        const token = await ensureGoogleToken();
         const t = today();
         const from = addDays(t, -SYNC_PAST_DAYS);
         const to = addDays(t, SYNC_FUTURE_DAYS + 1);
@@ -245,7 +269,7 @@
         try {
           fetched.push({ source: 'calendar', items: await fetchCalendar(token, from, to) });
         } catch (e) {
-          if (e.code === 'google-auth') throw e;
+          if (e.code === 'google-auth') { clearToken(); throw e; }
           warnings.push('Agenda: ' + e.message);
         }
         try {
