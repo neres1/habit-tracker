@@ -178,6 +178,7 @@
       '<p class="login-text">Conecte sua conta Google para transformar os eventos da Agenda e as suas Tasks em atividades que você conclui e avalia de 1 a 10.</p>' +
       `<button type="button" class="btn btn-primary btn-block" data-action="signin">${ICONS.google}Entrar com Google</button>` +
       '<p class="hint">O app pede acesso somente leitura à Agenda e às Tasks. Ele nunca altera nada no Google.</p>' +
+      '<p class="hint"><a href="privacidade.html">Política de Privacidade</a></p>' +
       (ui.bootError ? `<p class="field-error" role="alert">${esc(ui.bootError)}</p>` : '') +
       '</div></div>';
   }
@@ -494,7 +495,8 @@
         (store.mode === 'demo'
           ? '<button type="button" class="btn btn-ghost" data-action="demo-reset">Recriar dados de exemplo</button>'
           : '<button type="button" class="btn btn-danger" data-action="signout">Sair</button>') +
-      '</div></section>';
+      '</div>' +
+      '<p class="hint"><a href="privacidade.html">Política de Privacidade</a></p></section>';
   }
 
   function viewAtividade(key) {
